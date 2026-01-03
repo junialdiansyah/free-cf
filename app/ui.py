@@ -98,7 +98,12 @@ def get_generation_params():
     
     # Protocols
     protocols = []
-    console.print("\nSelect Protocols (comma separated): [1] Trojan, [2] VLESS, [3] Shadowsocks")
+    console.print("\n[bold]Select Protocols:[/bold]")
+    console.print("1. [cyan]Trojan[/cyan]")
+    console.print("2. [cyan]VLESS[/cyan]")
+    console.print("3. [cyan]Shadowsocks[/cyan]")
+    console.print("[dim](comma separated, e.g. 1,2)[/dim]")
+    
     choices = Prompt.ask("Choice", default="1,2")
     mapping = {"1": "trojan", "2": "vless", "3": "ss"}
     for c in choices.split(","):
@@ -107,7 +112,11 @@ def get_generation_params():
     
     # Ports
     ports = []
-    console.print("\nSelect Ports (comma separated): [1] 443 (TLS), [2] 80 (Data)")
+    console.print("\n[bold]Select Ports:[/bold]")
+    console.print("1. [cyan]443 (TLS)[/cyan]")
+    console.print("2. [cyan]80 (Data)[/cyan]")
+    console.print("[dim](comma separated, e.g. 1)[/dim]")
+    
     choices = Prompt.ask("Choice", default="1")
     mapping = {"1": "443", "2": "80"}
     for c in choices.split(","):
