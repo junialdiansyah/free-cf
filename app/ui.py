@@ -7,6 +7,37 @@ import sys
 
 console = Console()
 
+COUNTRY_NAMES = {
+    "SG": "Singapore", "ID": "Indonesia", "US": "United States", "JP": "Japan",
+    "DE": "Germany", "NL": "Netherlands", "FR": "France", "GB": "United Kingdom",
+    "CN": "China", "HK": "Hong Kong", "TW": "Taiwan", "KR": "South Korea",
+    "IN": "India", "AU": "Australia", "CA": "Canada", "BR": "Brazil",
+    "RU": "Russia", "UA": "Ukraine", "VN": "Vietnam", "TH": "Thailand",
+    "MY": "Malaysia", "PH": "Philippines", "TR": "Turkey", "IT": "Italy",
+    "ES": "Spain", "PT": "Portugal", "PL": "Poland", "FI": "Finland",
+    "SE": "Sweden", "NO": "Norway", "DK": "Denmark", "CH": "Switzerland",
+    "AE": "United Arab Emirates", "SA": "Saudi Arabia", "ZA": "South Africa",
+    "IL": "Israel", "IR": "Iran", "EG": "Egypt", "BD": "Bangladesh",
+    "PK": "Pakistan", "NP": "Nepal", "LK": "Sri Lanka", "MM": "Myanmar",
+    "KH": "Cambodia", "LA": "Laos", "KZ": "Kazakhstan", "UZ": "Uzbekistan",
+    "KG": "Kyrgyzstan", "TJ": "Tajikistan", "TM": "Turkmenistan", "MN": "Mongolia",
+    "NZ": "New Zealand", "IE": "Ireland", "BE": "Belgium", "AT": "Austria",
+    "CZ": "Czech Republic", "SK": "Slovakia", "HU": "Hungary", "RO": "Romania",
+    "BG": "Bulgaria", "GR": "Greece", "HR": "Croatia", "SI": "Slovenia",
+    "RS": "Serbia", "BA": "Bosnia and Herzegovina", "MK": "North Macedonia",
+    "ME": "Montenegro", "AL": "Albania", "MD": "Moldova", "BY": "Belarus",
+    "LV": "Latvia", "LT": "Lithuania", "EE": "Estonia", "IS": "Iceland",
+    "MX": "Mexico", "AR": "Argentina", "CL": "Chile", "CO": "Colombia",
+    "PE": "Peru", "VE": "Venezuela", "EC": "Ecuador", "BO": "Bolivia",
+    "PY": "Paraguay", "UY": "Uruguay", "NG": "Nigeria", "KE": "Kenya",
+    "GH": "Ghana", "TZ": "Tanzania", "UG": "Uganda", "MZ": "Mozambique",
+    "ZW": "Zimbabwe", "MA": "Morocco", "DZ": "Algeria", "TN": "Tunisia",
+    "LY": "Libya", "SD": "Sudan", "ET": "Ethiopia", "SO": "Somalia"
+}
+
+def get_country_name(code):
+    return COUNTRY_NAMES.get(code.upper(), code)
+
 def clear_screen():
     console.clear()
 
@@ -48,10 +79,14 @@ def display_regions(data: dict):
     table.add_column("Top ISPs", style="magenta")
 
     for region in regions:
+        code = region.get("code", "UNK")
+        full_name = get_country_name(code)
+        display_country = f"{full_name} ({code})" if full_name != code else code
+        
         orgs_str = ", ".join([f"{o['name']} ({o['count']})" for o in region.get('orgs', [])[:2]])
         table.add_row(
             region.get("flag", ""),
-            region.get("code", "UNK"),
+            display_country,
             str(region.get("count", 0)),
             orgs_str
         )
@@ -106,7 +141,11 @@ def select_region(data: dict) -> list[str]:
         code = region.get("code", "UNK")
         count = region.get("count", 0)
         flag = region.get("flag", "")
-        console.print(f"{idx}. {flag}  [cyan]{code}[/cyan] ({count} IPs)")
+        
+        full_name = get_country_name(code)
+        display_country = f"[cyan]{full_name}[/cyan] ({code})"
+        
+        console.print(f"{idx}. {flag}  {display_country} ([green]{count}[/green] IPs)")
         region_map[str(idx)] = code
 
     input_str = Prompt.ask("\nEnter selection (comma separated numbers, e.g. 1,3)", default="0")
