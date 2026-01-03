@@ -103,12 +103,19 @@ def main():
                     print() # Empty line
                     
                     # Save to bug.yaml
+                    filename = "bug.yaml"
+                    save_path = filename
+                    
+                    # Check for Android/Termux sdcard
+                    if os.path.exists("/sdcard"):
+                        save_path = os.path.join("/sdcard", filename)
+                    
                     try:
-                        with open("bug.yaml", "w", encoding="utf-8") as f:
+                        with open(save_path, "w", encoding="utf-8") as f:
                             f.write(result)
-                        ui.print_success("Configuration generated and saved to bug.yaml!")
+                        ui.print_success(f"Configuration generated and saved to {save_path}!")
                     except Exception as e:
-                        ui.print_error(f"Failed to save to bug.yaml: {e}")
+                        ui.print_error(f"Failed to save to {save_path}: {e}")
             
             elif choice == "3": # My IP
                 ui.console.print("\n[dim]Fetching IP info...[/dim]")
