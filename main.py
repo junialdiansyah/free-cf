@@ -102,20 +102,33 @@ def main():
                     print(result)
                     print() # Empty line
                     
-                    # Save to bug.yaml
-                    filename = "bug.yaml"
-                    save_path = filename
-                    
-                    # Check for Android/Termux sdcard
+                    # Determine Save Paths
+                    save_dir = "."
                     if os.path.exists("/sdcard"):
-                        save_path = os.path.join("/sdcard", filename)
+                        save_dir = "/sdcard"
+                        
+                    bug_path = os.path.join(save_dir, "bug.yaml")
+                    clash_path = os.path.join(save_dir, "clash.yaml")
                     
+                    # 1. Save bug.yaml (Raw Links)
                     try:
-                        with open(save_path, "w", encoding="utf-8") as f:
+                        with open(bug_path, "w", encoding="utf-8") as f:
                             f.write(result)
-                        ui.print_success(f"Configuration generated and saved to {save_path}!")
+                        ui.print_success(f"Raw config saved to {bug_path}")
                     except Exception as e:
-                        ui.print_error(f"Failed to save to {save_path}: {e}")
+                        ui.print_error(f"Failed to save {bug_path}: {e}")
+
+                    # 2. Save clash.yaml (Converted)
+                    try:
+                        # Convert to Clash
+                        from app.clash import generate_clash_config
+                        clash_yaml = generate_clash_config(result)
+                        
+                        with open(clash_path, "w", encoding="utf-8") as f:
+                            f.write(clash_yaml)
+                        ui.print_success(f"Clash config saved to {clash_path}")
+                    except Exception as e:
+                        ui.print_error(f"Failed to save {clash_path}: {e}")
             
             elif choice == "3": # My IP
                 ui.console.print("\n[dim]Fetching IP info...[/dim]")
