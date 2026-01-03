@@ -24,6 +24,15 @@ class WorkerAPI:
         except requests.RequestException as e:
             return {"error": str(e)}
 
+    def get_bug_hosts(self) -> Dict[str, Any]:
+        """Fetch available bug hosts from the worker."""
+        try:
+            response = requests.get(f"{self.base_url}/api/v1/domains", timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            return {"error": str(e)}
+
     def generate_config(self, 
                         bug_host: str, 
                         protocols: List[str], 

@@ -39,8 +39,15 @@ def main():
                 ui.display_regions(data)
                 
             elif choice == "2": # Generate Config
-                # 1. Get Generation Params (Host, Protocol, Port, Limit)
-                bug_host, protocols, ports, limit = ui.get_generation_params()
+                # 0. Fetch Bug Hosts & Select
+                ui.console.print("\n[dim]Fetching bug hosts...[/dim]")
+                domain_data = api.get_bug_hosts()
+                bug_hosts = domain_data.get("domains", [])
+                
+                selected_bug_host = ui.select_bug_host(bug_hosts)
+                
+                # 1. Get Generation Params (Protocol, Port, Limit)
+                protocols, ports, limit = ui.get_generation_params()
                 
                 # 2. Fetch Regions for Selection
                 ui.console.print("\n[dim]Fetching active regions...[/dim]")
@@ -80,7 +87,7 @@ def main():
                 ui.console.print(f"\n[dim]Generating configuration for regions=[white]{regions_display}[/white], orgs=[white]{orgs_display}[/white]...[/dim]")
                 
                 result = api.generate_config(
-                    bug_host=bug_host,
+                    bug_host=selected_bug_host,
                     protocols=protocols,
                     ports=ports,
                     regions=selected_regions,
@@ -94,7 +101,14 @@ def main():
                     ui.console.print("\n[bold green]--- Generated Configuration ---[/bold green]\n")
                     print(result)
                     print() # Empty line
-                    ui.print_success("Configuration generated successfully!")
+                    
+                    # Save to bug.yaml
+                    try:
+                        with open("bug.yaml", "w", encoding="utf-8") as f:
+                            f.write(result)
+                        ui.print_success("Configuration generated and saved to bug.yaml!")
+                    except Exception as e:
+                        ui.print_error(f"Failed to save to bug.yaml: {e}")
             
             elif choice == "3": # My IP
                 ui.console.print("\n[dim]Fetching IP info...[/dim]")

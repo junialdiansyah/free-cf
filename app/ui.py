@@ -96,8 +96,6 @@ def display_regions(data: dict):
 def get_generation_params():
     console.print("\n[bold]Configuration Generator[/bold]")
     
-    bug_host = Prompt.ask("Bug Host / SNI (Leave empty to use Worker Domain)", default="")
-    
     # Protocols
     protocols = []
     console.print("\nSelect Protocols (comma separated): [1] Trojan, [2] VLESS, [3] Shadowsocks")
@@ -118,7 +116,33 @@ def get_generation_params():
             
     limit = IntPrompt.ask("\nLimit Results", default=10)
     
-    return bug_host, protocols, ports, limit
+    return protocols, ports, limit
+
+def select_bug_host(hosts: list) -> str:
+    """
+    Interactive prompt to select a bug host.
+    """
+    if not hosts:
+        console.print("[yellow]Could not fetch bug hosts. Please enter manually.[/yellow]")
+        return Prompt.ask("Bug Host / SNI (Leave empty to use Worker Domain)", default="")
+
+    console.print("\n[bold]Select Bug Host / SNI:[/bold]")
+    
+    for idx, host in enumerate(hosts, 1):
+        console.print(f"{idx}. [cyan]{host}[/cyan]")
+    
+    console.print(f"{len(hosts) + 1}. [yellow]Manual Input[/yellow]")
+
+    choice = IntPrompt.ask("\nEnter selection", default=1)
+    
+    if 1 <= choice <= len(hosts):
+        return hosts[choice - 1]
+    
+    if choice == len(hosts) + 1:
+        return Prompt.ask("Enter Bug Host manually")
+        
+    print_error("Invalid selection, using first option.")
+    return hosts[0]
 
 def select_region(data: dict) -> list[str]:
     """
