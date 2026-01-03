@@ -1,0 +1,6 @@
+@echo off
+echo Installing dependencies...
+pip install -r python_cli/requirements.txt
+echo Starting Dashboard...
+python python_cli/main.py
+pause
