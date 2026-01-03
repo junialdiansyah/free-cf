@@ -28,9 +28,8 @@ def get_menu_choice():
     console.print("1. [cyan]Check Available Regions[/cyan]")
     console.print("2. [cyan]Generate Configuration[/cyan]")
     console.print("3. [cyan]Check My IP[/cyan]")
-    console.print("4. [cyan]Update Worker URL[/cyan]")
     console.print("0. [red]Exit[/red]")
-    return Prompt.ask("\n[bold]Select an option[/bold]", choices=["0", "1", "2", "3", "4"], default="0")
+    return Prompt.ask("\n[bold]Select an option[/bold]", choices=["0", "1", "2", "3"], default="0")
 
 def display_regions(data: dict):
     if "error" in data:
@@ -88,7 +87,7 @@ def get_generation_params():
 
 def select_region(data: dict) -> list[str]:
     """
-    Interactive prompt to select a region.
+    Interactive prompt to select regions.
     Returns a list of selected region codes (e.g. ['SG', 'ID']) or ['ALL'].
     """
     if "error" in data or "regions" not in data:
@@ -98,7 +97,7 @@ def select_region(data: dict) -> list[str]:
     if not regions:
         return ["ALL"]
 
-    console.print("\n[bold]Select Region:[/bold]")
+    console.print("\n[bold]Select Region(s):[/bold]")
     console.print(f"0. [bold white]ALL REGIONS[/bold white] (Any available)")
     
     # Map index to region code
@@ -110,40 +109,35 @@ def select_region(data: dict) -> list[str]:
         console.print(f"{idx}. {flag}  [cyan]{code}[/cyan] ({count} IPs)")
         region_map[str(idx)] = code
 
-    choice = Prompt.ask("\nEnter selection (number)", default="0")
+    input_str = Prompt.ask("\nEnter selection (comma separated numbers, e.g. 1,3)", default="0")
     
-    if choice == "0":
-        return ["ALL"]
-    
-    if choice in region_map:
-        return [region_map[choice]]
-    
-    print_error("Invalid selection, defaulting to ALL")
-    return ["ALL"]
-
-def select_isp(region_code: str, data: dict) -> list[str]:
-    """
-    Interactive prompt to select an ISP from a specific region.
-    Returns a list of selected ISPs or ['ALL'].
-    """
-    if "error" in data or "regions" not in data:
-        return ["ALL"]
-
-    # Find the data for the selected region
-    target_region = next((r for r in data.get("regions", []) if r.get("code") == region_code), None)
-    
-    if not target_region:
+    selected_codes = set()
+    for choice in input_str.split(","):
+        choice = choice.strip()
+        if choice == "0":
+            return ["ALL"]
+        if choice in region_map:
+            selected_codes.add(region_map[choice])
+            
+    if not selected_codes:
+        print_error("Invalid selection, defaulting to ALL")
         return ["ALL"]
         
-    orgs = target_region.get("orgs", [])
-    if not orgs:
+    return list(selected_codes)
+
+def select_isp(available_orgs: list[dict]) -> list[str]:
+    """
+    Interactive prompt to select ISPs from a provided list.
+    Returns a list of selected ISPs or ['ALL'].
+    """
+    if not available_orgs:
         return ["ALL"]
 
-    console.print(f"\n[bold]Select ISP for {region_code}:[/bold]")
+    console.print(f"\n[bold]Select ISP(s):[/bold]")
     console.print(f"0. [bold white]ALL ISPs[/bold white]")
     
     org_map = {}
-    for idx, org in enumerate(orgs, 1):
+    for idx, org in enumerate(available_orgs, 1):
         name = org.get("name", "Unknown")
         count = org.get("count", 0)
         # Truncate long names
@@ -151,13 +145,18 @@ def select_isp(region_code: str, data: dict) -> list[str]:
         console.print(f"{idx}. [magenta]{display_name}[/magenta] ({count})")
         org_map[str(idx)] = name
 
-    choice = Prompt.ask("\nEnter selection (number)", default="0")
+    input_str = Prompt.ask("\nEnter selection (comma separated numbers, e.g. 1,2)", default="0")
     
-    if choice == "0":
+    selected_names = set()
+    for choice in input_str.split(","):
+        choice = choice.strip()
+        if choice == "0":
+            return ["ALL"]
+        if choice in org_map:
+            selected_names.add(org_map[choice])
+    
+    if not selected_names:
+        print_error("Invalid selection, defaulting to ALL")
         return ["ALL"]
-    
-    if choice in org_map:
-        return [org_map[choice]]
-    
-    print_error("Invalid selection, defaulting to ALL")
-    return ["ALL"]
+        
+    return list(selected_names)

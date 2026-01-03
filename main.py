@@ -21,15 +21,8 @@ def main():
     ui.clear_screen()
     ui.print_banner()
     
-    config_mgr = ConfigManager()
-    worker_url = config_mgr.get_worker_url()
-    
-    if not worker_url:
-        ui.console.print("\n[bold yellow]No Worker URL configured![/bold yellow]")
-        worker_url = Prompt.ask("Enter your Cloudflare Worker URL (e.g., https://my-worker.workers.dev)")
-        config_mgr.save_worker_url(worker_url)
-        ui.print_success("Configuration saved!")
-    
+    # Static Configuration
+    worker_url = ConfigManager.get_worker_url()
     api = WorkerAPI(worker_url)
     
     while True:
@@ -53,16 +46,39 @@ def main():
                 ui.console.print("\n[dim]Fetching active regions...[/dim]")
                 region_data = api.get_regions()
                 
-                # 3. Select Region
+                # 3. Select Region(s)
                 selected_regions = ui.select_region(region_data)
                 
-                # 4. Select ISP (If a specific region is selected)
+                # 4. Select ISP(s)
                 selected_orgs = ["ALL"]
-                if selected_regions != ["ALL"] and len(selected_regions) == 1:
-                    # If user selected exactly one specific region, allow ISP filtering
-                    selected_orgs = ui.select_isp(selected_regions[0], region_data)
                 
-                ui.console.print(f"\n[dim]Generating configuration for {selected_regions[0]} / {selected_orgs[0]}...[/dim]")
+                # If "ALL" regions is NOT selected, we can filter ISPs available in the selected regions
+                if "ALL" not in selected_regions:
+                    # Aggregate potential ISPs from all selected regions
+                    available_orgs = {}
+                    
+                    for r in region_data.get("regions", []):
+                        if r.get("code") in selected_regions:
+                            for o in r.get("orgs", []):
+                                name = o.get("name")
+                                count = o.get("count", 0)
+                                if name in available_orgs:
+                                    available_orgs[name] += count
+                                else:
+                                    available_orgs[name] = count
+                    
+                    # Convert back to list of dicts for UI
+                    org_list = [{"name": k, "count": v} for k, v in available_orgs.items()]
+                    # Sort by count desc
+                    org_list.sort(key=lambda x: x['count'], reverse=True)
+                    
+                    if org_list:
+                        selected_orgs = ui.select_isp(org_list)
+                
+                regions_display = ",".join(selected_regions)
+                orgs_display = ",".join(selected_orgs)
+                ui.console.print(f"\n[dim]Generating configuration for regions=[white]{regions_display}[/white], orgs=[white]{orgs_display}[/white]...[/dim]")
+                
                 result = api.generate_config(
                     bug_host=bug_host,
                     protocols=protocols,
@@ -75,20 +91,15 @@ def main():
                 if result.startswith("Error"):
                     ui.print_error(result)
                 else:
-                    ui.console.print(ui.Panel(result, title="Generated Configuration", border_style="green"))
+                    ui.console.print("\n[bold green]--- Generated Configuration ---[/bold green]\n")
+                    print(result)
+                    print() # Empty line
                     ui.print_success("Configuration generated successfully!")
             
             elif choice == "3": # My IP
                 ui.console.print("\n[dim]Fetching IP info...[/dim]")
                 data = api.get_my_ip()
                 ui.console.print_json(data=data)
-                
-            elif choice == "4": # Update URL
-                new_url = Prompt.ask("Enter new Worker URL", default=worker_url)
-                config_mgr.save_worker_url(new_url)
-                worker_url = new_url
-                api = WorkerAPI(worker_url)
-                ui.print_success("Configuration updated!")
                 
             Prompt.ask("\nPress Enter to continue...")
             ui.clear_screen()
