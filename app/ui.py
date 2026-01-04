@@ -116,6 +116,12 @@ def print_ping_result(host: str, success: bool, latency: float):
     else:
         console.print(f"[bold red]✗ Failed to connect to {host}[/bold red]")
 
+def print_handshake_result(idx: int, alias: str, success: bool, latency: float, message: str):
+    if success:
+        console.print(f"[bold green]#{idx} {alias}[/bold green]: [green]✓ {message}[/green] [dim]({latency:.1f}ms)[/dim]")
+    else:
+        console.print(f"[bold red]#{idx} {alias}[/bold red]: [red]✗ {message}[/red]")
+
 def print_banner():
     grid = Table.grid(expand=True)
     grid.add_column(justify="center", ratio=1)
@@ -127,7 +133,7 @@ def print_banner():
         style="blue",
         border_style="blue",
         padding=(0, 2),
-        title="[bold]v2.0[/bold]",
+        title="[bold]v2.1[/bold]",
         title_align="right"
     )
     console.print(panel)
@@ -321,3 +327,74 @@ def select_isp(available_orgs: list[dict]) -> list[str]:
         return ["ALL"]
         
     return list(selected_names)
+
+def select_worker_domain(domains_with_status: list) -> str:
+    """
+    Select a worker domain from a list of (domain, status) tuples.
+    """
+    if not domains_with_status:
+        return "" 
+    
+    table = Table(box=box.SIMPLE_HEAD, expand=False)
+    table.add_column("No.", justify="right", style="dim", width=4)
+    table.add_column("Domain", style="cyan")
+    table.add_column("Status", justify="left")
+    
+    for idx, (domain, status) in enumerate(domains_with_status, 1):
+        status_style = "bold green" if status == "ACTIVE" else "bold red"
+        icon = "✅" if status == "ACTIVE" else "❌"
+        table.add_row(str(idx), domain, f"[{status_style}]{status}[/{status_style}] {icon}")
+        
+    console.print(Panel(table, title="[bold white]Select Worker Domain[/bold white]", border_style="blue", expand=False))
+    
+    choice = IntPrompt.ask("Select Domain", default=1)
+    if 1 <= choice <= len(domains_with_status):
+        return domains_with_status[choice-1][0]
+        
+    print_error("Invalid selection, using first option.")
+    return domains_with_status[0][0]
+
+def manage_workers_menu(workers: list, active_idx: int) -> tuple[str, str, str]:
+    """
+    Displays worker management menu.
+    Returns (action, name, url) 
+    actions: 'add', 'switch', 'delete', 'back'
+    """
+    console.print("\n[bold blue]Worker Management[/bold blue]\n")
+    
+    table = Table(box=box.SIMPLE_HEAD, expand=True)
+    table.add_column("ID", justify="right", style="dim", width=4)
+    table.add_column("Name", style="white")
+    table.add_column("URL", style="cyan")
+    table.add_column("Status", justify="center")
+    
+    for idx, w in enumerate(workers):
+        status = "[bold green]ACTIVE[/bold green]" if idx == active_idx else ""
+        table.add_row(str(idx + 1), w['name'], w['url'], status)
+        
+    console.print(table)
+    console.print("\nOptions:")
+    console.print("[cyan]1[/cyan]. Add New Worker")
+    console.print("[cyan]2[/cyan]. Switch Active Worker")
+    console.print("[cyan]3[/cyan]. Delete Worker")
+    console.print("[dim]0[/dim]. Back")
+    
+    choice = Prompt.ask("\nSelect Option", choices=["0", "1", "2", "3"], default="0")
+    
+    if choice == "0":
+        return "back", "", ""
+        
+    elif choice == "1":
+        name = Prompt.ask("Worker Name")
+        url = Prompt.ask("Worker URL")
+        return "add", name, url
+        
+    elif choice == "2":
+        idx = IntPrompt.ask("Enter ID to switch to")
+        return "switch", str(idx - 1), ""
+        
+    elif choice == "3":
+        idx = IntPrompt.ask("Enter ID to delete")
+        return "delete", str(idx - 1), ""
+    
+    return "back", "", ""

@@ -33,6 +33,16 @@ class WorkerAPI:
         except requests.RequestException as e:
             return {"error": str(e)}
 
+    def get_worker_domains(self) -> Dict[str, Any]:
+        """Fetch available worker domains (KV) for link generation."""
+        try:
+            response = requests.get(f"{self.base_url}/api/v1/worker-domains", timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            # Fallback if API not available or error
+            return {"domains": []}
+
     def generate_config(self, 
                         bug_host: str, 
                         protocols: List[str], 
@@ -40,7 +50,8 @@ class WorkerAPI:
                         regions: List[str], 
                         orgs: List[str], 
                         limit: int = 10,
-                        format_type: str = 'raw') -> tuple[str, str]:
+                        format_type: str = 'raw',
+                        app_domain: str = "") -> tuple[str, str]:
         
         params = {
             "domain": bug_host,
@@ -51,6 +62,9 @@ class WorkerAPI:
             "cc": ",".join(regions) if "ALL" not in regions else "",
             "org": ",".join(orgs) if "ALL" not in orgs else ""
         }
+
+        if app_domain:
+            params["app_domain"] = app_domain
         
         # Clean up empty params
         params = {k: v for k, v in params.items() if v}
