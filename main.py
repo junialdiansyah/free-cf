@@ -15,6 +15,7 @@ import app.ui as ui
 from rich.prompt import Prompt
 from app.history import HistoryManager
 from app.network import tcp_ping, check_domain_status
+import pyperclip
 
 def process_generated_result(result_tuple, bug_host=None):
     # Unpack tuple (result_content, subscription_url)
@@ -30,8 +31,15 @@ def process_generated_result(result_tuple, bug_host=None):
     else:
         ui.console.print("\n[bold green]--- Generated Configuration ---[/bold green]\n")
         print(result)
-        print() 
         
+        # Auto Copy to Clipboard
+        try:
+            pyperclip.copy(result)
+            ui.console.print("\n[bold green]✓ Config copied to clipboard![/bold green]")
+        except Exception as e:
+            ui.console.print(f"\n[dim red]Failed to copy to clipboard: {e}[/dim red]")
+            
+        print()        
         if sub_url:
             ui.console.print(f"[bold yellow]Subscription Link:[/bold yellow] [underline]{sub_url}[/underline]")
             
