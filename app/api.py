@@ -40,7 +40,7 @@ class WorkerAPI:
                         regions: List[str], 
                         orgs: List[str], 
                         limit: int = 10,
-                        format_type: str = 'raw') -> str:
+                        format_type: str = 'raw') -> tuple[str, str]:
         
         params = {
             "domain": bug_host,
@@ -61,6 +61,6 @@ class WorkerAPI:
         try:
             response = requests.get(url, timeout=15)
             response.raise_for_status()
-            return response.text
+            return response.text, url
         except requests.RequestException as e:
-            return f"Error generating config: {str(e)}"
+            return f"Error generating config: {str(e)}", url
