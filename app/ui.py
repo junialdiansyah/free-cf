@@ -197,12 +197,15 @@ def get_generation_params():
     # Protocols
     protocols = []
     
-    p_table = Table(show_header=False, box=None, padding=(0, 1))
-    p_table.add_row("1.", "[cyan]Trojan[/cyan]")
-    p_table.add_row("2.", "[cyan]VLESS[/cyan]")
-    p_table.add_row("3.", "[cyan]Shadowsocks[/cyan]")
+    p_table = Table(show_header=False, box=box.SIMPLE_HEAD, expand=True)
+    p_table.add_column("ID", justify="right", style="dim", width=4)
+    p_table.add_column("Protocol", style="cyan")
     
-    console.print(Panel(p_table, title="Select Protocols", border_style="dim", width=40))
+    p_table.add_row("1", "Trojan")
+    p_table.add_row("2", "VLESS")
+    p_table.add_row("3", "Shadowsocks")
+    
+    console.print(Panel(p_table, title="[bold white]Select Protocols[/bold white]", border_style="blue", padding=(0, 1)))
     console.print("[dim]Enter choices (comma separated, e.g. 1,2)[/dim]")
     
     choices = Prompt.ask("Choice", default="1,2")
@@ -214,11 +217,14 @@ def get_generation_params():
     # Ports
     ports = []
     
-    pt_table = Table(show_header=False, box=None, padding=(0, 1))
-    pt_table.add_row("1.", "[cyan]443[/cyan] (TLS)")
-    pt_table.add_row("2.", "[cyan]80[/cyan]  (Data)")
+    pt_table = Table(show_header=False, box=box.SIMPLE_HEAD, expand=True)
+    pt_table.add_column("ID", justify="right", style="dim", width=4)
+    pt_table.add_column("Port", style="cyan")
     
-    console.print(Panel(pt_table, title="Select Ports", border_style="dim", width=40))
+    pt_table.add_row("1", "443 (TLS)")
+    pt_table.add_row("2", "80  (Data)")
+    
+    console.print(Panel(pt_table, title="[bold white]Select Ports[/bold white]", border_style="blue", padding=(0, 1)))
     console.print("[dim]Enter choices (comma separated, e.g. 1)[/dim]")
     
     choices = Prompt.ask("Choice", default="1")
@@ -231,18 +237,47 @@ def get_generation_params():
     
     return protocols, ports, limit
 
+def select_worker_domain(domains_with_status: list) -> str:
+    """
+    Select a worker domain from a list of (domain, status) tuples.
+    """
+    if not domains_with_status:
+        return "" 
+    
+    table = Table(box=box.SIMPLE_HEAD, expand=True)
+    table.add_column("No.", justify="right", style="dim", width=4)
+    table.add_column("Domain", style="cyan")
+    table.add_column("Status", justify="left")
+    
+    for idx, (domain, status) in enumerate(domains_with_status, 1):
+        status_style = "bold green" if status == "ACTIVE" else "bold red"
+        icon = "✅" if status == "ACTIVE" else "❌"
+        table.add_row(str(idx), domain, f"[{status_style}]{status}[/{status_style}] {icon}")
+        
+    console.print(Panel(table, title="[bold white]Select Worker Domain[/bold white]", border_style="blue", padding=(0, 1)))
+    
+    choice = IntPrompt.ask("Select Domain", default=1)
+    if 1 <= choice <= len(domains_with_status):
+        return domains_with_status[choice-1][0]
+        
+    print_error("Invalid selection, using first option.")
+    return domains_with_status[0][0]
+
 def select_bug_host(hosts: list) -> str:
     if not hosts:
         console.print("[yellow]Could not fetch bug hosts. Please enter manually.[/yellow]")
         return Prompt.ask("Bug Host / SNI", default="")
 
-    table = Table(show_header=False, box=None, padding=(0, 1))
-    for idx, host in enumerate(hosts, 1):
-        table.add_row(f"{idx}.", f"[cyan]{host}[/cyan]")
+    table = Table(show_header=False, box=box.SIMPLE_HEAD, expand=True)
+    table.add_column("ID", justify="right", style="dim", width=4)
+    table.add_column("Host", style="cyan")
     
-    table.add_row(f"{len(hosts) + 1}.", "[yellow]Manual Input[/yellow]")
+    for idx, host in enumerate(hosts, 1):
+        table.add_row(f"{idx}", host)
+    
+    table.add_row(f"{len(hosts) + 1}", "[yellow]Manual Input[/yellow]")
 
-    console.print(Panel(table, title="Select Bug Host", border_style="blue", expand=False))
+    console.print(Panel(table, title="[bold white]Select Bug Host[/bold white]", border_style="blue", padding=(0, 1)))
 
     choice = IntPrompt.ask("Enter selection", default=1)
     
@@ -263,8 +298,12 @@ def select_region(data: dict) -> list[str]:
     if not regions:
         return ["ALL"]
 
-    table = Table(show_header=False, box=None, padding=(0, 1))
-    table.add_row("0.", "[bold white]ALL REGIONS[/bold white] (Any)")
+    table = Table(show_header=False, box=box.SIMPLE_HEAD, expand=True)
+    table.add_column("ID", justify="right", style="dim", width=4)
+    table.add_column("Region", style="white")
+    table.add_column("Count", justify="right", style="dim")
+    
+    table.add_row("0", "[bold white]ALL REGIONS[/bold white] (Any)", "")
     
     region_map = {}
     for idx, region in enumerate(regions, 1):
@@ -273,10 +312,10 @@ def select_region(data: dict) -> list[str]:
         flag = region.get("flag", " ")
         full_name = get_country_name(code)
         
-        table.add_row(f"{idx}.", f"{flag} {full_name}", f"[dim]({count})[/dim]")
+        table.add_row(f"{idx}", f"{flag} {full_name}", f"({count})")
         region_map[str(idx)] = code
 
-    console.print(Panel(table, title="Select Region(s)", border_style="blue", expand=False))
+    console.print(Panel(table, title="[bold white]Select Region(s)[/bold white]", border_style="blue", padding=(0, 1)))
 
     input_str = Prompt.ask("Enter selection (comma separated)", default="0")
     
@@ -298,19 +337,23 @@ def select_isp(available_orgs: list[dict]) -> list[str]:
     if not available_orgs:
         return ["ALL"]
 
-    table = Table(show_header=False, box=None, padding=(0, 1))
-    table.add_row("0.", "[bold white]ALL ISPs[/bold white]")
+    table = Table(show_header=False, box=box.SIMPLE_HEAD, expand=True)
+    table.add_column("ID", justify="right", style="dim", width=4)
+    table.add_column("ISP", style="magenta")
+    table.add_column("Count", justify="right", style="dim")
+    
+    table.add_row("0", "[bold white]ALL ISPs[/bold white]", "")
     
     org_map = {}
     for idx, org in enumerate(available_orgs, 1):
         name = org.get("name", "Unknown")
         count = org.get("count", 0)
-        name_trunc = (name[:28] + '..') if len(name) > 28 else name
+        name_trunc = (name[:40] + '..') if len(name) > 40 else name
         
-        table.add_row(f"{idx}.", f"[magenta]{name_trunc}[/magenta]", f"({count})")
+        table.add_row(f"{idx}", name_trunc, f"({count})")
         org_map[str(idx)] = name
 
-    console.print(Panel(table, title="Select ISP(s)", border_style="blue", expand=False))
+    console.print(Panel(table, title="[bold white]Select ISP(s)[/bold white]", border_style="blue", padding=(0, 1)))
 
     input_str = Prompt.ask("Enter selection (comma separated)", default="0")
     
@@ -327,32 +370,6 @@ def select_isp(available_orgs: list[dict]) -> list[str]:
         return ["ALL"]
         
     return list(selected_names)
-
-def select_worker_domain(domains_with_status: list) -> str:
-    """
-    Select a worker domain from a list of (domain, status) tuples.
-    """
-    if not domains_with_status:
-        return "" 
-    
-    table = Table(box=box.SIMPLE_HEAD, expand=False)
-    table.add_column("No.", justify="right", style="dim", width=4)
-    table.add_column("Domain", style="cyan")
-    table.add_column("Status", justify="left")
-    
-    for idx, (domain, status) in enumerate(domains_with_status, 1):
-        status_style = "bold green" if status == "ACTIVE" else "bold red"
-        icon = "✅" if status == "ACTIVE" else "❌"
-        table.add_row(str(idx), domain, f"[{status_style}]{status}[/{status_style}] {icon}")
-        
-    console.print(Panel(table, title="[bold white]Select Worker Domain[/bold white]", border_style="blue", expand=False))
-    
-    choice = IntPrompt.ask("Select Domain", default=1)
-    if 1 <= choice <= len(domains_with_status):
-        return domains_with_status[choice-1][0]
-        
-    print_error("Invalid selection, using first option.")
-    return domains_with_status[0][0]
 
 def manage_workers_menu(workers: list, active_idx: int) -> tuple[str, str, str]:
     """
