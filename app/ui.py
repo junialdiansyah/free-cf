@@ -3,9 +3,38 @@ from rich.table import Table
 from rich.panel import Panel
 from rich import box
 from rich.prompt import Prompt, IntPrompt
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 import sys
+from contextlib import contextmanager
 
 console = Console()
+
+@contextmanager
+def show_loading(message: str, spinner: str = "dots"):
+    """
+    Context manager to show a loading spinner.
+    Usage:
+        with ui.show_loading("Fetching data..."):
+            api.do_something()
+    """
+    with console.status(f"[bold cyan]{message}[/bold cyan]", spinner=spinner):
+        yield
+
+def create_progress():
+    """
+    Returns a configured Progress object.
+    Usage:
+        with ui.create_progress() as progress:
+            task = progress.add_task("Processing...", total=10)
+            ...
+    """
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console
+    )
 
 COUNTRY_NAMES = {
     "SG": "Singapore", "ID": "Indonesia", "US": "United States", "JP": "Japan",
@@ -122,6 +151,23 @@ def print_handshake_result(idx: int, alias: str, success: bool, latency: float, 
     else:
         console.print(f"[bold red]#{idx} {alias}[/bold red]: [red]✗ {message}[/red]")
 
+def print_reliability_result(idx: int, alias: str, stats: dict):
+    if stats['success']:
+        # Color coding based on latency for the METRICS only
+        avg = stats['avg_latency']
+        lat_color = "green" if avg < 150 else "yellow" if avg < 300 else "red"
+        
+        # Success status is ALWAYS green
+        console.print(
+            f"[bold green]#{idx} {alias}[/bold green]: "
+            f"[bold green]✓ {stats['msg']}[/bold green] "
+            f"[dim]Avg:[/dim] [bold {lat_color}]{avg:.0f}ms[/bold {lat_color}] "
+            f"[dim]Jitter:[/dim] {stats['jitter']:.0f}ms "
+            f"[dim]Rate:[/dim] {stats['success_rate']}%"
+        )
+    else:
+        console.print(f"[bold red]#{idx} {alias}[/bold red]: [red]✗ {stats['msg']}[/red] (0% Success)")
+
 def print_banner():
     grid = Table.grid(expand=True)
     grid.add_column(justify="center", ratio=1)
@@ -148,11 +194,12 @@ def get_menu_choice():
     menu_table.add_row("[cyan]3[/cyan]", "Generate from Last Used")
     menu_table.add_row("[cyan]4[/cyan]", "Instant Generate (Random 5)")
     menu_table.add_row("[cyan]5[/cyan]", "Check Client IP")
+    menu_table.add_row("[cyan]6[/cyan]", "Manage Presets (Profiles)")
     menu_table.add_row("[dim]0[/dim]", "[dim]Exit[/dim]")
     
     console.print(Panel(menu_table, title="[bold white]Menu Options[/bold white]", border_style="blue", padding=(0, 1)))
     
-    choice = Prompt.ask("\nSelect Option", choices=["0", "1", "2", "3", "4", "5"], default="0")
+    choice = Prompt.ask("\nSelect Option", choices=["0", "1", "2", "3", "4", "5", "6"], default="0")
     return choice
 
 def display_regions(data: dict):
@@ -415,3 +462,53 @@ def manage_workers_menu(workers: list, active_idx: int) -> tuple[str, str, str]:
         return "delete", str(idx - 1), ""
     
     return "back", "", ""
+
+def manage_profiles_menu(profiles: dict) -> tuple[str, str]:
+    """
+    Displays profile management menu.
+    Returns (action, profile_name)
+    actions: 'load', 'delete', 'back'
+    """
+    console.print("\n[bold blue]Saved Profiles (Presets)[/bold blue]\n")
+    
+    if not profiles:
+        console.print("[dim italic]No profiles saved yet.[/dim italic]")
+        console.print("\n[dim]To save a profile, generate a config first, then choose 'Save as Profile'[/dim]")
+        Prompt.ask("\nPress Enter to go back...")
+        return "back", ""
+    
+    table = Table(box=box.SIMPLE_HEAD, expand=True)
+    table.add_column("ID", justify="right", style="dim", width=4)
+    table.add_column("Profile Name", style="cyan")
+    table.add_column("Details", style="white")
+    
+    profile_names = list(profiles.keys())
+    
+    for idx, name in enumerate(profile_names, 1):
+        p = profiles[name]
+        details = f"{p.get('bug_host','')} | {','.join(p.get('regions',[]))} | {len(p.get('protocols',[]))} Protos"
+        table.add_row(str(idx), name, details)
+        
+    console.print(table)
+    console.print("\nOptions:")
+    console.print("[green]1[/green]. Load Profile")
+    console.print("[red]2[/red]. Delete Profile")
+    console.print("[dim]0[/dim]. Back")
+    
+    choice = Prompt.ask("\nSelect Option", choices=["0", "1", "2"], default="0")
+    
+    if choice == "0":
+        return "back", ""
+        
+    elif choice == "1":
+        idx = IntPrompt.ask("Enter Profile ID to Load", default=1)
+        if 1 <= idx <= len(profile_names):
+            return "load", profile_names[idx-1]
+            
+    elif choice == "2":
+        idx = IntPrompt.ask("Enter Profile ID to Delete", default=1)
+        if 1 <= idx <= len(profile_names):
+            if Prompt.ask(f"Are you sure you want to delete '{profile_names[idx-1]}'?", choices=["y", "n"]) == "y":
+                return "delete", profile_names[idx-1]
+    
+    return "back", ""

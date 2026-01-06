@@ -3,11 +3,12 @@ import time
 import ssl
 import urllib.parse
 import requests
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Any
 
 def parse_proxy_url(url: str) -> Dict[str, str]:
     """
     Parse vless:// or trojan:// url to extract connection details.
+
     Returns dict with keys: host, port, net, type, security, sni, path
     """
     try:
@@ -135,4 +136,68 @@ def check_domain_status(domain: str, timeout: int = 5) -> str:
             # DNS failure, Connection refusal, Timeout all fall here -> Continue to next proto or return DEAD
             continue
             
+            
     return "DEAD"
+
+def test_proxy_reliability(config_link: str, count: int = 3) -> Dict[str, Any]:
+    """
+    Perform multiple handshakes to test reliability and stability.
+    Returns dict: {
+        "success": bool,     # True if at least one passed
+        "success_rate": int, # Percentage 0-100
+        "avg_latency": float,
+        "min_latency": float,
+        "max_latency": float,
+        "jitter": float,
+        "msg": str
+    }
+    """
+    latencies = []
+    success_count = 0
+    last_msg = ""
+    
+    for i in range(count):
+        # Fail Fast: If first attempt fails (likely dead/timeout), stop immediately
+        # Use a slightly longer timeout for first attempt, shorter for subsequent
+        timeout = 2.0 if i == 0 else 1.5
+        
+        ok, lat, msg = test_proxy_handshake(config_link, timeout=timeout)
+        last_msg = msg
+        
+        if ok:
+            success_count += 1
+            latencies.append(lat)
+        else:
+            # If the first one failed, it's virtually guaranteed to be bad/unstable.
+            # Abort to save time.
+            if i == 0:
+                break
+                
+        time.sleep(0.1) # Reduced delay
+            
+    if not latencies:
+        return {
+            "success": False,
+            "success_rate": 0,
+            "avg_latency": 0.0,
+            "min_latency": 0.0,
+            "max_latency": 0.0,
+            "jitter": 0.0,
+            "msg": last_msg
+        }
+        
+    avg = sum(latencies) / len(latencies)
+    
+    jitter = 0.0
+    if len(latencies) > 1:
+        jitter = max(latencies) - min(latencies)
+        
+    return {
+        "success": True,
+        "success_rate": int((success_count / (i + 1)) * 100), # Rate relative to attempts made
+        "avg_latency": avg,
+        "min_latency": min(latencies),
+        "max_latency": max(latencies),
+        "jitter": jitter,
+        "msg": "OK"
+    }

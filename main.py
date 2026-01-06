@@ -17,7 +17,12 @@ from app.history import HistoryManager
 from app.network import tcp_ping, check_domain_status
 import pyperclip
 
+
+
 def process_generated_result(result_tuple, bug_host=None):
+    ui.clear_screen()
+    ui.print_banner()
+    
     # Unpack tuple (result_content, subscription_url)
     if isinstance(result_tuple, tuple):
         result, sub_url = result_tuple
@@ -74,25 +79,49 @@ def process_generated_result(result_tuple, bug_host=None):
         ui.console.print("\n[dim]Saving files...[/dim]")
         
         # Perform Real Proxy Handshake Test
-        ui.console.print("\n[bold]Testing Proxy Handshake...[/bold]")
+        ui.console.print("\n[bold]Testing Proxy Reliability (3x Pings)...[/bold]")
         
         # Split result into lines to test each config
         lines = [line.strip() for line in result.split('\n') if line.strip()]
         
-        from app.network import test_proxy_handshake
+        from app.network import test_proxy_reliability
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         
-        for i, line in enumerate(lines, 1):
-            if line.startswith("vless://") or line.startswith("trojan://"):
-                # Extract a short alias from the hash/remark for display
-                try:
-                    alias = line.split('#')[-1]
-                    alias = urllib.parse.unquote(alias)
-                    if len(alias) > 20: alias = alias[:20] + ".."
-                except:
-                    alias = "Config"
+        # --- NEW PROGRESS BAR IMPLEMENTATION ---
+        with ui.create_progress() as progress:
+            task = progress.add_task("[cyan]Testing reliability (Parallel)...", total=len(lines))
+            
+            # Using ThreadPool to check multiple configs at once
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_meta = {}
+                
+                # Submit all tasks
+                for i, line in enumerate(lines, 1):
+                    if line.startswith("vless://") or line.startswith("trojan://"):
+                        # Extract a short alias
+                        try:
+                            alias = line.split('#')[-1]
+                            alias = urllib.parse.unquote(alias)
+                            if len(alias) > 20: alias = alias[:20] + ".."
+                        except:
+                            alias = "Config"
+                        
+                        future = executor.submit(test_proxy_reliability, line, count=3)
+                        future_to_meta[future] = (i, alias)
+                    else:
+                        progress.advance(task)
+
+                # Process results as they complete
+                for future in as_completed(future_to_meta):
+                    i, alias = future_to_meta[future]
+                    try:
+                        stats = future.result()
+                        ui.print_reliability_result(i, alias, stats)
+                    except Exception as e:
+                        ui.console.print(f"[red]Error testing #{i}: {e}[/red]")
                     
-                success, latency, msg = test_proxy_handshake(line)
-                ui.print_handshake_result(i, alias, success, latency, msg)
+                    progress.advance(task)
+        # ---------------------------------------
         
         # Determine Save Paths
         save_dir = "."
@@ -155,44 +184,63 @@ def main():
                 break
                 
             elif choice == "1": # Check Regions
-                ui.console.print("\n[dim]Fetching regions...[/dim]")
-                data = api.get_regions()
+                ui.clear_screen()
+                ui.print_banner()
+                
+                with ui.show_loading("Fetching regions..."):
+                    data = api.get_regions()
+                
+                ui.clear_screen()
+                ui.print_banner()
                 ui.display_regions(data)
                 
             elif choice == "2": # Generate Configuration
+                ui.clear_screen()
+                ui.print_banner()
+
                 # 0. Fetch Worker Domains (App Domains)
-                ui.console.print("\n[dim]Fetching worker domains...[/dim]")
-                wd_data = api.get_worker_domains()
+                with ui.show_loading("Fetching worker domains..."):
+                    wd_data = api.get_worker_domains()
                 w_domains = wd_data.get("domains", [])
                 
                 selected_app_domain = ""
                 if len(w_domains) > 1:
                     ui.console.print("\n[dim]Checking domain health...[/dim]")
+                    
                     domain_status_list = []
+                    # Optional: Progress bar for checking domains if many
                     for d in w_domains:
                         status = check_domain_status(d)
                         domain_status_list.append((d, status))
                     
+                    ui.clear_screen()
+                    ui.print_banner()
                     selected_app_domain = ui.select_worker_domain(domain_status_list)
                     ui.console.print(f"[dim]Selected: {selected_app_domain}[/dim]")
                 elif w_domains:
                     selected_app_domain = w_domains[0]
 
                 # 0. Fetch Bug Hosts & Select (Standard)
-                ui.console.print("\n[dim]Fetching bug hosts...[/dim]")
-                domain_data = api.get_bug_hosts()
+                with ui.show_loading("Fetching bug hosts..."):
+                    domain_data = api.get_bug_hosts()
                 bug_hosts = domain_data.get("domains", [])
                 
+                ui.clear_screen()
+                ui.print_banner()
                 selected_bug_host = ui.select_bug_host(bug_hosts)
                 
                 # 1. Get Generation Params (Protocol, Port, Limit)
+                ui.clear_screen()
+                ui.print_banner()
                 protocols, ports, limit = ui.get_generation_params()
                 
                 # 2. Fetch Regions for Selection
-                ui.console.print("\n[dim]Fetching active regions...[/dim]")
-                region_data = api.get_regions()
+                with ui.show_loading("Fetching active regions..."):
+                    region_data = api.get_regions()
                 
                 # 3. Select Region(s)
+                ui.clear_screen()
+                ui.print_banner()
                 selected_regions = ui.select_region(region_data)
                 
                 # 4. Select ISP(s)
@@ -219,11 +267,12 @@ def main():
                     org_list.sort(key=lambda x: x['count'], reverse=True)
                     
                     if org_list:
+                        ui.clear_screen()
+                        ui.print_banner()
                         selected_orgs = ui.select_isp(org_list)
                 
                 regions_display = ",".join(selected_regions)
                 orgs_display = ",".join(selected_orgs)
-                ui.console.print(f"\n[dim]Generating configuration for regions=[white]{regions_display}[/white], orgs=[white]{orgs_display}[/white]...[/dim]")
                 
                 # Save to History
                 history_data = {
@@ -237,19 +286,33 @@ def main():
                 }
                 HistoryManager.save_last_config(history_data)
 
-                result = api.generate_config(
-                    bug_host=selected_bug_host,
-                    protocols=protocols,
-                    ports=ports,
-                    regions=selected_regions,
-                    orgs=selected_orgs,
-                    limit=limit,
-                    app_domain=selected_app_domain
-                )
+                # Offer to Save as Profile
+                ui.console.print()
+                if Prompt.ask("[dim]Save this configuration as a Preset Profile?[/dim]", choices=["y", "n"], default="n") == "y":
+                    p_name = Prompt.ask("Enter Profile Name (e.g., 'Gaming SG')")
+                    if p_name:
+                        if HistoryManager.save_profile(p_name, history_data):
+                            ui.print_success(f"Profile '{p_name}' saved!")
+                        else:
+                            ui.print_error("Failed to save profile.")
+
+                result = ""
+                with ui.show_loading(f"Generating configuration for {regions_display}..."):
+                    result = api.generate_config(
+                        bug_host=selected_bug_host,
+                        protocols=protocols,
+                        ports=ports,
+                        regions=selected_regions,
+                        orgs=selected_orgs,
+                        limit=limit,
+                        app_domain=selected_app_domain
+                    )
                 
                 process_generated_result(result, bug_host=selected_bug_host)
 
             elif choice == "3": # Generate from Last Used
+                ui.clear_screen()
+                ui.print_banner()
                 last_config = HistoryManager.load_last_config()
                 if not last_config:
                     ui.print_error("No history found. Please generate a config first.")
@@ -258,20 +321,25 @@ def main():
                     ui.console.print_json(data=last_config)
                     
                     if Prompt.ask("\nProceed with these settings?", choices=["y", "n"], default="y") == "y":
-                        result = api.generate_config(
-                            bug_host=last_config.get("bug_host", ""),
-                            protocols=last_config.get("protocols", ["vless"]),
-                            ports=last_config.get("ports", ["443"]),
-                            regions=last_config.get("regions", ["ALL"]),
-                            orgs=last_config.get("orgs", ["ALL"]),
-                            limit=last_config.get("limit", 1),
-                            app_domain=last_config.get("app_domain", "")
-                        )
+                        result = ""
+                        with ui.show_loading("Generating configuration..."):
+                            result = api.generate_config(
+                                bug_host=last_config.get("bug_host", ""),
+                                protocols=last_config.get("protocols", ["vless"]),
+                                ports=last_config.get("ports", ["443"]),
+                                regions=last_config.get("regions", ["ALL"]),
+                                orgs=last_config.get("orgs", ["ALL"]),
+                                limit=last_config.get("limit", 1),
+                                app_domain=last_config.get("app_domain", "")
+                            )
                         process_generated_result(result, bug_host=last_config.get("bug_host", ""))
             
             elif choice == "4": # Instant Generate (Random 5)
-                ui.console.print("\n[dim]Fetching bug hosts...[/dim]")
-                domain_data = api.get_bug_hosts()
+                ui.clear_screen()
+                ui.print_banner()
+                
+                with ui.show_loading("Fetching bug hosts..."):
+                    domain_data = api.get_bug_hosts()
                 bug_hosts = domain_data.get("domains", [])
                 
                 # Pick Random Bug Host if available
@@ -281,23 +349,73 @@ def main():
                     selected_bug_host = random.choice(bug_hosts)
                     ui.console.print(f"[dim]Randomly selected bug host: [cyan]{selected_bug_host}[/cyan][/dim]")
                 
-                ui.console.print("\n[dim]Generating 5 random configurations...[/dim]")
-                
-                result = api.generate_config(
-                    bug_host=selected_bug_host,
-                    protocols=["trojan", "vless"],
-                    ports=["443", "80"],
-                    regions=["ALL"],
-                    orgs=["ALL"],
-                    limit=5
-                )
+                result = ""
+                with ui.show_loading("Generating 5 random configurations..."):
+                    result = api.generate_config(
+                        bug_host=selected_bug_host,
+                        protocols=["trojan", "vless"],
+                        ports=["443", "80"],
+                        regions=["ALL"],
+                        orgs=["ALL"],
+                        limit=5
+                    )
                 
                 process_generated_result(result, bug_host=selected_bug_host)
 
             elif choice == "5": # Check My IP
-                ui.console.print("\n[dim]Fetching IP info...[/dim]")
-                data = api.get_my_ip()
+                ui.clear_screen()
+                ui.print_banner()
+                
+                with ui.show_loading("Fetching IP info..."):
+                    data = api.get_my_ip()
+                
+                ui.clear_screen()
+                ui.print_banner()
                 ui.console.print_json(data=data)
+
+            elif choice == "6": # Manage Presets
+                ui.clear_screen()
+                ui.print_banner()
+                
+                while True:
+                    profiles = HistoryManager.load_profiles()
+                    action, p_name = ui.manage_profiles_menu(profiles)
+                    
+                    if action == "back":
+                        break
+                    elif action == "delete":
+                        if HistoryManager.delete_profile(p_name):
+                            ui.print_success(f"Profile '{p_name}' deleted.")
+                        else:
+                            ui.print_error(f"Failed to delete '{p_name}'.")
+                        ui.clear_screen()
+                        ui.print_banner()
+                    elif action == "load":
+                        ui.clear_screen()
+                        ui.print_banner()
+                        p_config = profiles.get(p_name)
+                        ui.console.print(f"\n[bold cyan]Loading Profile: {p_name}[/bold cyan]")
+                        ui.console.print_json(data=p_config)
+                        
+                        if Prompt.ask("\nProceed with this profile?", choices=["y", "n"], default="y") == "y":
+                           result = ""
+                           with ui.show_loading("Generating configuration..."):
+                               result = api.generate_config(
+                                   bug_host=p_config.get("bug_host", ""),
+                                   protocols=p_config.get("protocols", ["vless"]),
+                                   ports=p_config.get("ports", ["443"]),
+                                   regions=p_config.get("regions", ["ALL"]),
+                                   orgs=p_config.get("orgs", ["ALL"]),
+                                   limit=p_config.get("limit", 1),
+                                   app_domain=p_config.get("app_domain", "")
+                               )
+                           process_generated_result(result, bug_host=p_config.get("bug_host", ""))
+                           break # usage done, break inner loop to return to main menu
+                        else:
+                            # Cancelled load, return to profile menu
+                            ui.clear_screen()
+                            ui.print_banner()
+
 
                 
             Prompt.ask("\nPress Enter to continue...")
