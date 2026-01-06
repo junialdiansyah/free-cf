@@ -387,7 +387,34 @@ def main():
                 
                 ui.clear_screen()
                 ui.print_banner()
-                ui.console.print_json(data=data)
+                # Filter and Display Key Types
+                important_keys = {
+                    "ip": "IP Address",
+                    "city": "City",
+                    "region": "Region",
+                    "country": "Country",
+                    "asn": "ASN",
+                    "asOrganization": "ISP / Organization",
+                    "colo": "Edge Location (Colo)",
+                    "timezone": "Timezone"
+                }
+
+                ui.console.print(f"\n[bold cyan]Client Information[/bold cyan]")
+                
+                # Check for specific CF headers often found in raw data
+                if "asn" not in data and "fl" in data: # Handle trace-like data if necessary
+                     pass 
+
+                found_any = False
+                for key, label in important_keys.items():
+                    val = data.get(key)
+                    if val:
+                        ui.console.print(f" [dim]•[/dim] [bold]{label.ljust(20)}:[/bold] {val}")
+                        found_any = True
+                
+                if not found_any:
+                    # Fallback if structure is different
+                    ui.console.print_json(data=data)
 
             elif choice == "6": # Manage Presets
                 ui.clear_screen()
