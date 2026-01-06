@@ -209,9 +209,25 @@ def main():
                     
                     domain_status_list = []
                     # Optional: Progress bar for checking domains if many
-                    for d in w_domains:
-                        status = check_domain_status(d)
-                        domain_status_list.append((d, status))
+                    from concurrent.futures import ThreadPoolExecutor, as_completed
+                    
+                    # Parallel Domain Checking
+                    with ui.console.status("[bold green]Checking domain health (Parallel)...[/bold green]"):
+                        with ThreadPoolExecutor(max_workers=10) as executor:
+                            # Submit all
+                            future_to_domain = {executor.submit(check_domain_status, d): d for d in w_domains}
+                            
+                            # Gather results
+                            for future in as_completed(future_to_domain):
+                                d = future_to_domain[future]
+                                try:
+                                    status = future.result()
+                                    domain_status_list.append((d, status))
+                                except:
+                                    domain_status_list.append((d, "DEAD"))
+                    
+                    # Sort to keep order consistent if needed, or by status
+                    domain_status_list.sort(key=lambda x: x[0])
                     
                     ui.clear_screen()
                     ui.print_banner()

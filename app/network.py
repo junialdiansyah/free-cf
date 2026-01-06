@@ -16,9 +16,9 @@ def parse_proxy_url(url: str) -> Dict[str, str]:
         parsed = urllib.parse.urlparse(url)
         
         # Extract basic info
-        netloc_parts = parsed.netloc.split("@")[-1].split(":")
-        host = netloc_parts[0]
-        port = int(netloc_parts[1]) if len(netloc_parts) > 1 else 443
+        # Use built-in hostname/port attributes which handle IPv6 brackets [::1] automatically
+        host = parsed.hostname
+        port = parsed.port if parsed.port else 443
         
         # Parse query params
         query = urllib.parse.parse_qs(parsed.query)
